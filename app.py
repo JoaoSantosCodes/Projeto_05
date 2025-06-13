@@ -242,7 +242,7 @@ class DatabaseApp:
         # Buscar todos os links do inventário correspondente
         conn = sqlite3.connect('inventario.db')
         cursor = conn.cursor()
-        cursor.execute("SELECT operadora, circuito_designacao, novo_circuito_designacao, id_vivo, novo_id_vivo FROM servicos_internet WHERE people=? OR people=?", (peop, 'VD'+peop))
+        cursor.execute("SELECT operadora, circuito_designacao, novo_circuito_designacao, id_vivo, novo_id_vivo FROM servicos_internet WHERE people=? OR people=? OR people=?", (peop, 'L'+peop, 'VD'+peop))
         rows_inv = cursor.fetchall()
         conn.close()
         # Se houver múltiplos links, pedir seleção
@@ -595,7 +595,7 @@ LOJA VD {values[1]} FAVOR LIGAR PARA CONFIRMAR A NORMALIZAÇÃO E LIBERAÇÃO DE
         # Buscar todos os links do inventário para esse People
         conn = sqlite3.connect('inventario.db')
         cursor = conn.cursor()
-        cursor.execute("SELECT operadora, circuito_designacao, novo_circuito_designacao, id_vivo, novo_id_vivo FROM servicos_internet WHERE people=? OR people=?", (peop, 'VD'+peop))
+        cursor.execute("SELECT operadora, circuito_designacao, novo_circuito_designacao, id_vivo, novo_id_vivo FROM servicos_internet WHERE people=? OR people=? OR people=?", (peop, 'L'+peop, 'VD'+peop))
         rows_inv = cursor.fetchall()
         # Buscar dados da loja correspondente
         cursor.execute("SELECT nome, endereco, bairro, cidade, uf, cep, vd_novo, horario_semana, horario_sabado, horario_domingo, funcionamento FROM lojas WHERE peop=? OR peop=?", (peop, 'VD'+peop))
