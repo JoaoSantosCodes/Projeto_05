@@ -1,0 +1,2 @@
+Este é um arquivo de teste.
+Vamos usar este arquivo para demonstrar o processo de commit. 
