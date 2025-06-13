@@ -239,17 +239,72 @@ class DatabaseApp:
             return
         values = self.tree_lojas.item(selected[0], 'values')
         peop = values[1]
-        # Buscar dados do inventário correspondente
+        # Buscar todos os links do inventário correspondente
         conn = sqlite3.connect('inventario.db')
         cursor = conn.cursor()
         cursor.execute("SELECT operadora, circuito_designacao, novo_circuito_designacao, id_vivo, novo_id_vivo FROM servicos_internet WHERE people=? OR people=?", (peop, 'VD'+peop))
-        row_inv = cursor.fetchone()
-        if row_inv:
-            operadora, circuito, novo_circuito, id_vivo, novo_id_vivo = row_inv
-        else:
-            operadora = circuito = novo_circuito = id_vivo = novo_id_vivo = ''
+        rows_inv = cursor.fetchall()
         conn.close()
-        carimbo_texto = f"""
+        # Se houver múltiplos links, pedir seleção
+        link_idx = 0
+        incluir_todos = False
+        if len(rows_inv) > 1:
+            sel_popup = tk.Toplevel(self.root)
+            sel_popup.title("Selecione o link/operadora")
+            tk.Label(sel_popup, text="Selecione o link/operadora para o carimbo:").pack(padx=10, pady=5)
+            var = tk.IntVar(value=0)
+            for idx, row in enumerate(rows_inv):
+                op = f"{row[0]} | {row[1]}"
+                tk.Radiobutton(sel_popup, text=op, variable=var, value=idx).pack(anchor='w')
+            var_todos = tk.BooleanVar()
+            def marcar_todos():
+                var.set(-1)
+                var_todos.set(True)
+            tk.Checkbutton(sel_popup, text="Incluir todos os links (tabela)", variable=var_todos, command=marcar_todos).pack(anchor='w', pady=5)
+            def confirmar():
+                nonlocal link_idx, incluir_todos
+                link_idx = var.get()
+                incluir_todos = var_todos.get()
+                sel_popup.destroy()
+            tk.Button(sel_popup, text="Confirmar", command=confirmar).pack(pady=5)
+            self.root.wait_window(sel_popup)
+        # Montar carimbo_texto e HTML
+        if rows_inv and (incluir_todos or link_idx == -1):
+            # Tabela de todos os links
+            tabela_links = "\n".join([
+                f"Operadora: {r[0]} | Circuito: {r[1]} | Novo Circuito: {r[2]} | ID VIVO: {r[3]} | Novo ID: {r[4]}" for r in rows_inv
+            ])
+            tabela_html = "".join([
+                f"<tr><td>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td>{r[4]}</td></tr>" for r in rows_inv
+            ])
+            carimbo_texto = f"""
+PEOP: {values[1]}
+LOJAS: {values[2]}
+ENDEREÇO: {values[3]}
+BAIRRO: {values[4]}
+CIDADE: {values[5]}
+UF: {values[6]}
+CEP: {values[7]}
+VD NOVO: {values[12]}
+{tabela_links}
+2ª a 6ª: {values[8]}
+SAB / DOM: {values[9]} / {values[10]}
+FUNC.: {values[11]}
+
+----------------------------------------
+CONTATO COMMAND CENTER
+Telefone: (11) 3274-7527
+E-mail: central.comando@dpsp.com.br
+
+MENSAGEM DE ABERTURA DE CHAMADO NOS PORTAIS
+LOJA VD {values[1]} FAVOR LIGAR PARA CONFIRMAR A NORMALIZAÇÃO E LIBERAÇÃO DE ACESSO COM A CENTRAL DE COMANDO | HORÁRIO DE FUNCIONAMENTO: 24 HORAS | SÁB 24 HORAS | DOM 24 HORAS
+"""
+        else:
+            if rows_inv:
+                operadora, circuito, novo_circuito, id_vivo, novo_id_vivo = rows_inv[link_idx]
+            else:
+                operadora = circuito = novo_circuito = id_vivo = novo_id_vivo = ''
+            carimbo_texto = f"""
 PEOP: {values[1]}
 LOJAS: {values[2]}
 ENDEREÇO: {values[3]}
@@ -298,47 +353,72 @@ LOJA VD {values[1]} FAVOR LIGAR PARA CONFIRMAR A NORMALIZAÇÃO E LIBERAÇÃO DE
         loja = values[2]
         assunto = f"{peop} | {loja} - Link Inoperante"
         assinatura = "<br>Atenciosamente,<br>"
-        html = f'''
-        <html><body>
-        <p>Prezados,</p>
-        <p>Identificamos que o link da loja <b>{peop} | {loja}</b> está inoperante. Seguem os dados necessários para abertura do reparo:</p>
-        <table cellpadding="4" cellspacing="0" border="1" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:14px;">
-            <tr style="background:#b4d2ff;font-weight:bold;text-align:center;"><td colspan="2" style="font-size:20px;">Relação de Lojas + Inventário</td></tr>
-            <tr style="background:#b4d2ff;font-weight:bold;"><td>PEOP</td><td>{peop}</td></tr>
-            <tr style="background:#5dc0d6;font-weight:bold;"><td>LOJAS</td><td>{loja}</td></tr>
-            <tr style="background:#5dc0d6;font-weight:bold;"><td>ENDEREÇO</td><td>{values[3]}</td></tr>
-            <tr style="background:#5dc0d6;font-weight:bold;"><td>BAIRRO</td><td>{values[4]}</td></tr>
-            <tr style="background:#5dc0d6;font-weight:bold;"><td>CIDADE</td><td>{values[5]}</td></tr>
-            <tr style="background:#5dc0d6;font-weight:bold;"><td>UF</td><td>{values[6]}</td></tr>
-            <tr style="background:#5dc0d6;font-weight:bold;"><td>CEP</td><td>{values[7]}</td></tr>
-            <tr style="background:#5dc0d6;font-weight:bold;"><td>VD NOVO</td><td>{values[12]}</td></tr>
-            <tr style="background:#5dc0d6;font-weight:bold;"><td>Operadora</td><td>{operadora}</td></tr>
-            <tr style="background:#5dc0d6;font-weight:bold;"><td>Circuito/Designação</td><td>{circuito}</td></tr>
-            <tr style="background:#5dc0d6;font-weight:bold;"><td>Novo Circuito/Designação</td><td>{novo_circuito}</td></tr>
-            <tr style="background:#5dc0d6;font-weight:bold;"><td>ID VIVO</td><td>{id_vivo}</td></tr>
-            <tr style="background:#5dc0d6;font-weight:bold;"><td>Novo ID Vivo</td><td>{novo_id_vivo}</td></tr>
-            <tr style="background:#fff7b2;font-weight:bold;"><td>2ª a 6ª</td><td>{values[8]}</td></tr>
-            <tr style="background:#fff7b2;font-weight:bold;"><td>SAB / DOM</td><td>{values[9]} / {values[10]}</td></tr>
-            <tr style="background:#fff7b2;font-weight:bold;"><td>FUNC.</td><td>{values[11]}</td></tr>
-            <tr>
-                <td colspan="2" style="background:#ed1c24;color:#fff;font-weight:bold;text-align:left;">
-                    CONTATO COMMAND CENTER<br>
-                    Telefone: (11) 3274-7527<br>
-                    E-mail: <a href="mailto:central.comando@dpsp.com.br" style="color:#fff;">central.comando@dpsp.com.br</a>
-                </td>
-            </tr>
-            <tr>
-                <td colspan="2" style="background:#333;color:#ffe000;font-weight:bold;text-align:center;">MENSAGEM DE ABERTURA DE CHAMADO NOS PORTAIS</td>
-            </tr>
-            <tr>
-                <td colspan="2" style="background:#fff7b2;color:#000;font-weight:bold;text-align:left;">
-                    LOJA VD {peop} FAVOR LIGAR PARA CONFIRMAR A NORMALIZAÇÃO E LIBERAÇÃO DE ACESSO COM A CENTRAL DE COMANDO | HORÁRIO DE FUNCIONAMENTO: 24 HORAS | SÁB 24 HORAS | DOM 24 HORAS
-                </td>
-            </tr>
-        </table>
-        <p>Agradecemos pela atenção{assinatura}</p>
-        </body></html>
-        '''
+        if rows_inv and (incluir_todos or link_idx == -1):
+            html_links = "".join([
+                f"<tr><td>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td>{r[4]}</td></tr>" for r in rows_inv
+            ])
+            html = f'''
+            <html><body>
+            <p>Prezados,</p>
+            <p>Identificamos que o link da loja <b>{peop} | {loja}</b> está inoperante. Seguem os dados necessários para abertura do reparo:</p>
+            <table cellpadding="4" cellspacing="0" border="1" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:14px;">
+                <tr style="background:#b4d2ff;font-weight:bold;text-align:center;"><td colspan="7" style="font-size:20px;">Relação de Lojas + Inventário</td></tr>
+                <tr style="background:#b4d2ff;font-weight:bold;"><td>PEOP</td><td>LOJAS</td><td>ENDEREÇO</td><td>BAIRRO</td><td>CIDADE</td><td>UF</td><td>CEP</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>{peop}</td><td>{loja}</td><td>{values[3]}</td><td>{values[4]}</td><td>{values[5]}</td><td>{values[6]}</td><td>{values[7]}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td colspan="7">VD NOVO: {values[12]}</td></tr>
+                <tr style="background:#fff7b2;font-weight:bold;"><td colspan="7">2ª a 6ª: {values[8]} | SAB/DOM: {values[9]} / {values[10]} | FUNC.: {values[11]}</td></tr>
+                <tr style="background:#b4d2ff;font-weight:bold;text-align:center;"><td colspan="7">Links/Operadoras</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>Operadora</td><td>Circuito</td><td>Novo Circuito</td><td>ID VIVO</td><td>Novo ID</td><td colspan="2"></td></tr>
+                {html_links}
+                <tr><td colspan="7" style="background:#ed1c24;color:#fff;font-weight:bold;text-align:left;">CONTATO COMMAND CENTER<br>Telefone: (11) 3274-7527<br>E-mail: <a href="mailto:central.comando@dpsp.com.br" style="color:#fff;">central.comando@dpsp.com.br</a></td></tr>
+                <tr><td colspan="7" style="background:#333;color:#ffe000;font-weight:bold;text-align:center;">MENSAGEM DE ABERTURA DE CHAMADO NOS PORTAIS</td></tr>
+                <tr><td colspan="7" style="background:#fff7b2;color:#000;font-weight:bold;text-align:left;">LOJA VD {peop} FAVOR LIGAR PARA CONFIRMAR A NORMALIZAÇÃO E LIBERAÇÃO DE ACESSO COM A CENTRAL DE COMANDO | HORÁRIO DE FUNCIONAMENTO: 24 HORAS | SÁB 24 HORAS | DOM 24 HORAS</td></tr>
+            </table>
+            <p>Agradecemos pela atenção{assinatura}</p>
+            </body></html>
+            '''
+        else:
+            html = f'''
+            <html><body>
+            <p>Prezados,</p>
+            <p>Identificamos que o link da loja <b>{peop} | {loja}</b> está inoperante. Seguem os dados necessários para abertura do reparo:</p>
+            <table cellpadding="4" cellspacing="0" border="1" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:14px;">
+                <tr style="background:#b4d2ff;font-weight:bold;text-align:center;"><td colspan="2" style="font-size:20px;">Relação de Lojas + Inventário</td></tr>
+                <tr style="background:#b4d2ff;font-weight:bold;"><td>PEOP</td><td>{peop}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>LOJAS</td><td>{loja}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>ENDEREÇO</td><td>{values[3]}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>BAIRRO</td><td>{values[4]}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>CIDADE</td><td>{values[5]}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>UF</td><td>{values[6]}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>CEP</td><td>{values[7]}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>VD NOVO</td><td>{values[12]}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>Operadora</td><td>{operadora}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>Circuito/Designação</td><td>{circuito}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>Novo Circuito/Designação</td><td>{novo_circuito}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>ID VIVO</td><td>{id_vivo}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>Novo ID Vivo</td><td>{novo_id_vivo}</td></tr>
+                <tr style="background:#fff7b2;font-weight:bold;"><td>2ª a 6ª</td><td>{values[8]}</td></tr>
+                <tr style="background:#fff7b2;font-weight:bold;"><td>SAB / DOM</td><td>{values[9]} / {values[10]}</td></tr>
+                <tr style="background:#fff7b2;font-weight:bold;"><td>FUNC.</td><td>{values[11]}</td></tr>
+                <tr>
+                    <td colspan="2" style="background:#ed1c24;color:#fff;font-weight:bold;text-align:left;">
+                        CONTATO COMMAND CENTER<br>
+                        Telefone: (11) 3274-7527<br>
+                        E-mail: <a href="mailto:central.comando@dpsp.com.br" style="color:#fff;">central.comando@dpsp.com.br</a>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="background:#333;color:#ffe000;font-weight:bold;text-align:center;">MENSAGEM DE ABERTURA DE CHAMADO NOS PORTAIS</td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="background:#fff7b2;color:#000;font-weight:bold;text-align:left;">
+                        LOJA VD {peop} FAVOR LIGAR PARA CONFIRMAR A NORMALIZAÇÃO E LIBERAÇÃO DE ACESSO COM A CENTRAL DE COMANDO | HORÁRIO DE FUNCIONAMENTO: 24 HORAS | SÁB 24 HORAS | DOM 24 HORAS
+                    </td>
+                </tr>
+            </table>
+            <p>Agradecemos pela atenção{assinatura}</p>
+            </body></html>
+            '''
 
         def enviar_email_smtp():
             if not messagebox.askyesno("Confirmação", "Deseja realmente enviar este e-mail para operacionaldpsp@gmail.com?"):
@@ -512,17 +592,51 @@ LOJA VD {values[1]} FAVOR LIGAR PARA CONFIRMAR A NORMALIZAÇÃO E LIBERAÇÃO DE
             return
         values = self.tree_servicos.item(selected[0], 'values')
         peop = values[0]
-        # Buscar dados da loja correspondente
+        # Buscar todos os links do inventário para esse People
         conn = sqlite3.connect('inventario.db')
         cursor = conn.cursor()
+        cursor.execute("SELECT operadora, circuito_designacao, novo_circuito_designacao, id_vivo, novo_id_vivo FROM servicos_internet WHERE people=? OR people=?", (peop, 'VD'+peop))
+        rows_inv = cursor.fetchall()
+        # Buscar dados da loja correspondente
         cursor.execute("SELECT nome, endereco, bairro, cidade, uf, cep, vd_novo, horario_semana, horario_sabado, horario_domingo, funcionamento FROM lojas WHERE peop=? OR peop=?", (peop, 'VD'+peop))
         row_loja = cursor.fetchone()
+        conn.close()
         if row_loja:
             nome, endereco, bairro, cidade, uf, cep, vd_novo, horario_semana, horario_sabado, horario_domingo, funcionamento = row_loja
         else:
             nome = endereco = bairro = cidade = uf = cep = vd_novo = horario_semana = horario_sabado = horario_domingo = funcionamento = ''
-        conn.close()
-        carimbo_texto = f"""
+        # Se houver múltiplos links, pedir seleção
+        link_idx = 0
+        incluir_todos = False
+        if len(rows_inv) > 1:
+            sel_popup = tk.Toplevel(self.root)
+            sel_popup.title("Selecione o link/operadora")
+            tk.Label(sel_popup, text="Selecione o link/operadora para o carimbo:").pack(padx=10, pady=5)
+            var = tk.IntVar(value=0)
+            for idx, row in enumerate(rows_inv):
+                op = f"{row[0]} | {row[1]}"
+                tk.Radiobutton(sel_popup, text=op, variable=var, value=idx).pack(anchor='w')
+            var_todos = tk.BooleanVar()
+            def marcar_todos():
+                var.set(-1)
+                var_todos.set(True)
+            tk.Checkbutton(sel_popup, text="Incluir todos os links (tabela)", variable=var_todos, command=marcar_todos).pack(anchor='w', pady=5)
+            def confirmar():
+                nonlocal link_idx, incluir_todos
+                link_idx = var.get()
+                incluir_todos = var_todos.get()
+                sel_popup.destroy()
+            tk.Button(sel_popup, text="Confirmar", command=confirmar).pack(pady=5)
+            self.root.wait_window(sel_popup)
+        # Montar carimbo_texto e HTML
+        if rows_inv and (incluir_todos or link_idx == -1):
+            tabela_links = "\n".join([
+                f"Operadora: {r[0]} | Circuito: {r[1]} | Novo Circuito: {r[2]} | ID VIVO: {r[3]} | Novo ID: {r[4]}" for r in rows_inv
+            ])
+            tabela_html = "".join([
+                f"<tr><td>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td>{r[4]}</td></tr>" for r in rows_inv
+            ])
+            carimbo_texto = f"""
 PEOP: {peop}
 LOJAS: {nome}
 ENDEREÇO: {endereco}
@@ -531,11 +645,38 @@ CIDADE: {cidade}
 UF: {uf}
 CEP: {cep}
 VD NOVO: {vd_novo}
-Operadora: {values[1]}
-Circuito/Designação: {values[2]}
-Novo Circuito/Designação: {values[3]}
-ID VIVO: {values[4]}
-Novo ID Vivo: {values[5]}
+{tabela_links}
+2ª a 6ª: {horario_semana}
+SAB / DOM: {horario_sabado} / {horario_domingo}
+FUNC.: {funcionamento}
+
+----------------------------------------
+CONTATO COMMAND CENTER
+Telefone: (11) 3274-7527
+E-mail: central.comando@dpsp.com.br
+
+MENSAGEM DE ABERTURA DE CHAMADO NOS PORTAIS
+LOJA VD {peop} FAVOR LIGAR PARA CONFIRMAR A NORMALIZAÇÃO E LIBERAÇÃO DE ACESSO COM A CENTRAL DE COMANDO | HORÁRIO DE FUNCIONAMENTO: 24 HORAS | SÁB 24 HORAS | DOM 24 HORAS
+"""
+        else:
+            if rows_inv:
+                operadora, circuito, novo_circuito, id_vivo, novo_id_vivo = rows_inv[link_idx]
+            else:
+                operadora = circuito = novo_circuito = id_vivo = novo_id_vivo = ''
+            carimbo_texto = f"""
+PEOP: {peop}
+LOJAS: {nome}
+ENDEREÇO: {endereco}
+BAIRRO: {bairro}
+CIDADE: {cidade}
+UF: {uf}
+CEP: {cep}
+VD NOVO: {vd_novo}
+Operadora: {operadora}
+Circuito/Designação: {circuito}
+Novo Circuito/Designação: {novo_circuito}
+ID VIVO: {id_vivo}
+Novo ID Vivo: {novo_id_vivo}
 2ª a 6ª: {horario_semana}
 SAB / DOM: {horario_sabado} / {horario_domingo}
 FUNC.: {funcionamento}
@@ -570,47 +711,72 @@ LOJA VD {peop} FAVOR LIGAR PARA CONFIRMAR A NORMALIZAÇÃO E LIBERAÇÃO DE ACES
         # HTML personalizado (igual ao Outlook, agora com campos combinados)
         assunto = f"{peop} | {nome} - Link Inoperante"
         assinatura = "<br>Atenciosamente,<br>"
-        html = f'''
-        <html><body>
-        <p>Prezados,</p>
-        <p>Identificamos que o link da loja <b>{peop} | {nome}</b> está inoperante. Seguem os dados necessários para abertura do reparo:</p>
-        <table cellpadding="4" cellspacing="0" border="1" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:14px;">
-            <tr style="background:#b4d2ff;font-weight:bold;text-align:center;"><td colspan="2" style="font-size:20px;">Inventário + Relação de Lojas</td></tr>
-            <tr style="background:#b4d2ff;font-weight:bold;"><td>PEOP</td><td>{peop}</td></tr>
-            <tr style="background:#5dc0d6;font-weight:bold;"><td>LOJAS</td><td>{nome}</td></tr>
-            <tr style="background:#5dc0d6;font-weight:bold;"><td>ENDEREÇO</td><td>{endereco}</td></tr>
-            <tr style="background:#5dc0d6;font-weight:bold;"><td>BAIRRO</td><td>{bairro}</td></tr>
-            <tr style="background:#5dc0d6;font-weight:bold;"><td>CIDADE</td><td>{cidade}</td></tr>
-            <tr style="background:#5dc0d6;font-weight:bold;"><td>UF</td><td>{uf}</td></tr>
-            <tr style="background:#5dc0d6;font-weight:bold;"><td>CEP</td><td>{cep}</td></tr>
-            <tr style="background:#5dc0d6;font-weight:bold;"><td>VD NOVO</td><td>{vd_novo}</td></tr>
-            <tr style="background:#5dc0d6;font-weight:bold;"><td>Operadora</td><td>{values[1]}</td></tr>
-            <tr style="background:#5dc0d6;font-weight:bold;"><td>Circuito/Designação</td><td>{values[2]}</td></tr>
-            <tr style="background:#5dc0d6;font-weight:bold;"><td>Novo Circuito/Designação</td><td>{values[3]}</td></tr>
-            <tr style="background:#5dc0d6;font-weight:bold;"><td>ID VIVO</td><td>{values[4]}</td></tr>
-            <tr style="background:#5dc0d6;font-weight:bold;"><td>Novo ID Vivo</td><td>{values[5]}</td></tr>
-            <tr style="background:#fff7b2;font-weight:bold;"><td>2ª a 6ª</td><td>{horario_semana}</td></tr>
-            <tr style="background:#fff7b2;font-weight:bold;"><td>SAB / DOM</td><td>{horario_sabado} / {horario_domingo}</td></tr>
-            <tr style="background:#fff7b2;font-weight:bold;"><td>FUNC.</td><td>{funcionamento}</td></tr>
-            <tr>
-                <td colspan="2" style="background:#ed1c24;color:#fff;font-weight:bold;text-align:left;">
-                    CONTATO COMMAND CENTER<br>
-                    Telefone: (11) 3274-7527<br>
-                    E-mail: <a href="mailto:central.comando@dpsp.com.br" style="color:#fff;">central.comando@dpsp.com.br</a>
-                </td>
-            </tr>
-            <tr>
-                <td colspan="2" style="background:#333;color:#ffe000;font-weight:bold;text-align:center;">MENSAGEM DE ABERTURA DE CHAMADO NOS PORTAIS</td>
-            </tr>
-            <tr>
-                <td colspan="2" style="background:#fff7b2;color:#000;font-weight:bold;text-align:left;">
-                    LOJA VD {peop} FAVOR LIGAR PARA CONFIRMAR A NORMALIZAÇÃO E LIBERAÇÃO DE ACESSO COM A CENTRAL DE COMANDO | HORÁRIO DE FUNCIONAMENTO: 24 HORAS | SÁB 24 HORAS | DOM 24 HORAS
-                </td>
-            </tr>
-        </table>
-        <p>Agradecemos pela atenção{assinatura}</p>
-        </body></html>
-        '''
+        if rows_inv and (incluir_todos or link_idx == -1):
+            html_links = "".join([
+                f"<tr><td>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td>{r[4]}</td></tr>" for r in rows_inv
+            ])
+            html = f'''
+            <html><body>
+            <p>Prezados,</p>
+            <p>Identificamos que o link da loja <b>{peop} | {nome}</b> está inoperante. Seguem os dados necessários para abertura do reparo:</p>
+            <table cellpadding="4" cellspacing="0" border="1" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:14px;">
+                <tr style="background:#b4d2ff;font-weight:bold;text-align:center;"><td colspan="7" style="font-size:20px;">Inventário + Relação de Lojas</td></tr>
+                <tr style="background:#b4d2ff;font-weight:bold;"><td>PEOP</td><td>LOJAS</td><td>ENDEREÇO</td><td>BAIRRO</td><td>CIDADE</td><td>UF</td><td>CEP</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>{peop}</td><td>{nome}</td><td>{endereco}</td><td>{bairro}</td><td>{cidade}</td><td>{uf}</td><td>{cep}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td colspan="7">VD NOVO: {vd_novo}</td></tr>
+                <tr style="background:#fff7b2;font-weight:bold;"><td colspan="7">2ª a 6ª: {horario_semana} | SAB/DOM: {horario_sabado} / {horario_domingo} | FUNC.: {funcionamento}</td></tr>
+                <tr style="background:#b4d2ff;font-weight:bold;text-align:center;"><td colspan="7">Links/Operadoras</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>Operadora</td><td>Circuito</td><td>Novo Circuito</td><td>ID VIVO</td><td>Novo ID</td><td colspan="2"></td></tr>
+                {html_links}
+                <tr><td colspan="7" style="background:#ed1c24;color:#fff;font-weight:bold;text-align:left;">CONTATO COMMAND CENTER<br>Telefone: (11) 3274-7527<br>E-mail: <a href="mailto:central.comando@dpsp.com.br" style="color:#fff;">central.comando@dpsp.com.br</a></td></tr>
+                <tr><td colspan="7" style="background:#333;color:#ffe000;font-weight:bold;text-align:center;">MENSAGEM DE ABERTURA DE CHAMADO NOS PORTAIS</td></tr>
+                <tr><td colspan="7" style="background:#fff7b2;color:#000;font-weight:bold;text-align:left;">LOJA VD {peop} FAVOR LIGAR PARA CONFIRMAR A NORMALIZAÇÃO E LIBERAÇÃO DE ACESSO COM A CENTRAL DE COMANDO | HORÁRIO DE FUNCIONAMENTO: 24 HORAS | SÁB 24 HORAS | DOM 24 HORAS</td></tr>
+            </table>
+            <p>Agradecemos pela atenção{assinatura}</p>
+            </body></html>
+            '''
+        else:
+            html = f'''
+            <html><body>
+            <p>Prezados,</p>
+            <p>Identificamos que o link da loja <b>{peop} | {nome}</b> está inoperante. Seguem os dados necessários para abertura do reparo:</p>
+            <table cellpadding="4" cellspacing="0" border="1" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:14px;">
+                <tr style="background:#b4d2ff;font-weight:bold;text-align:center;"><td colspan="2" style="font-size:20px;">Inventário + Relação de Lojas</td></tr>
+                <tr style="background:#b4d2ff;font-weight:bold;"><td>PEOP</td><td>{peop}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>LOJAS</td><td>{nome}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>ENDEREÇO</td><td>{endereco}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>BAIRRO</td><td>{bairro}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>CIDADE</td><td>{cidade}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>UF</td><td>{uf}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>CEP</td><td>{cep}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>VD NOVO</td><td>{vd_novo}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>Operadora</td><td>{operadora}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>Circuito/Designação</td><td>{circuito}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>Novo Circuito/Designação</td><td>{novo_circuito}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>ID VIVO</td><td>{id_vivo}</td></tr>
+                <tr style="background:#5dc0d6;font-weight:bold;"><td>Novo ID Vivo</td><td>{novo_id_vivo}</td></tr>
+                <tr style="background:#fff7b2;font-weight:bold;"><td>2ª a 6ª</td><td>{horario_semana}</td></tr>
+                <tr style="background:#fff7b2;font-weight:bold;"><td>SAB / DOM</td><td>{horario_sabado} / {horario_domingo}</td></tr>
+                <tr style="background:#fff7b2;font-weight:bold;"><td>FUNC.</td><td>{funcionamento}</td></tr>
+                <tr>
+                    <td colspan="2" style="background:#ed1c24;color:#fff;font-weight:bold;text-align:left;">
+                        CONTATO COMMAND CENTER<br>
+                        Telefone: (11) 3274-7527<br>
+                        E-mail: <a href="mailto:central.comando@dpsp.com.br" style="color:#fff;">central.comando@dpsp.com.br</a>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="background:#333;color:#ffe000;font-weight:bold;text-align:center;">MENSAGEM DE ABERTURA DE CHAMADO NOS PORTAIS</td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="background:#fff7b2;color:#000;font-weight:bold;text-align:left;">
+                        LOJA VD {peop} FAVOR LIGAR PARA CONFIRMAR A NORMALIZAÇÃO E LIBERAÇÃO DE ACESSO COM A CENTRAL DE COMANDO | HORÁRIO DE FUNCIONAMENTO: 24 HORAS | SÁB 24 HORAS | DOM 24 HORAS
+                    </td>
+                </tr>
+            </table>
+            <p>Agradecemos pela atenção{assinatura}</p>
+            </body></html>
+            '''
 
         def enviar_email_smtp():
             if not messagebox.askyesno("Confirmação", "Deseja realmente enviar este e-mail para operacionaldpsp@gmail.com?"):
