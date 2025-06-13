@@ -238,6 +238,17 @@ class DatabaseApp:
             messagebox.showwarning("Seleção necessária", "Selecione uma loja para gerar o carimbo.")
             return
         values = self.tree_lojas.item(selected[0], 'values')
+        peop = values[1]
+        # Buscar dados do inventário correspondente
+        conn = sqlite3.connect('inventario.db')
+        cursor = conn.cursor()
+        cursor.execute("SELECT operadora, circuito_designacao, novo_circuito_designacao, id_vivo, novo_id_vivo FROM servicos_internet WHERE people=? OR people=?", (peop, 'VD'+peop))
+        row_inv = cursor.fetchone()
+        if row_inv:
+            operadora, circuito, novo_circuito, id_vivo, novo_id_vivo = row_inv
+        else:
+            operadora = circuito = novo_circuito = id_vivo = novo_id_vivo = ''
+        conn.close()
         carimbo_texto = f"""
 PEOP: {values[1]}
 LOJAS: {values[2]}
@@ -246,11 +257,15 @@ BAIRRO: {values[4]}
 CIDADE: {values[5]}
 UF: {values[6]}
 CEP: {values[7]}
-
+VD NOVO: {values[12]}
+Operadora: {operadora}
+Circuito/Designação: {circuito}
+Novo Circuito/Designação: {novo_circuito}
+ID VIVO: {id_vivo}
+Novo ID Vivo: {novo_id_vivo}
 2ª a 6ª: {values[8]}
 SAB / DOM: {values[9]} / {values[10]}
 FUNC.: {values[11]}
-VD NOVO: {values[12]}
 
 ----------------------------------------
 CONTATO COMMAND CENTER
@@ -262,7 +277,7 @@ LOJA VD {values[1]} FAVOR LIGAR PARA CONFIRMAR A NORMALIZAÇÃO E LIBERAÇÃO DE
 """
         # Exibir em popup apenas a imagem
         top = tk.Toplevel(self.root)
-        top.title("Carimbo - Relação de Lojas")
+        top.title("Carimbo - Relação de Lojas + Inventário")
         try:
             img = self.gerar_png_carimbo(carimbo_texto, f"carimbo_loja_{values[1]}.png", return_image=True)
             max_width = 900
@@ -279,8 +294,7 @@ LOJA VD {values[1]} FAVOR LIGAR PARA CONFIRMAR A NORMALIZAÇÃO E LIBERAÇÃO DE
         png_path = f"carimbos/carimbo_loja_{values[1]}.png"
         tk.Label(top, text=f"PNG salvo como carimbo_loja_{values[1]}.png").pack()
 
-        # HTML personalizado (igual ao Outlook)
-        peop = values[1]
+        # HTML personalizado (igual ao Outlook, agora com campos combinados)
         loja = values[2]
         assunto = f"{peop} | {loja} - Link Inoperante"
         assinatura = "<br>Atenciosamente,<br>"
@@ -289,7 +303,7 @@ LOJA VD {values[1]} FAVOR LIGAR PARA CONFIRMAR A NORMALIZAÇÃO E LIBERAÇÃO DE
         <p>Prezados,</p>
         <p>Identificamos que o link da loja <b>{peop} | {loja}</b> está inoperante. Seguem os dados necessários para abertura do reparo:</p>
         <table cellpadding="4" cellspacing="0" border="1" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:14px;">
-            <tr style="background:#b4d2ff;font-weight:bold;text-align:center;"><td colspan="2" style="font-size:20px;">Relação de Lojas</td></tr>
+            <tr style="background:#b4d2ff;font-weight:bold;text-align:center;"><td colspan="2" style="font-size:20px;">Relação de Lojas + Inventário</td></tr>
             <tr style="background:#b4d2ff;font-weight:bold;"><td>PEOP</td><td>{peop}</td></tr>
             <tr style="background:#5dc0d6;font-weight:bold;"><td>LOJAS</td><td>{loja}</td></tr>
             <tr style="background:#5dc0d6;font-weight:bold;"><td>ENDEREÇO</td><td>{values[3]}</td></tr>
@@ -297,10 +311,15 @@ LOJA VD {values[1]} FAVOR LIGAR PARA CONFIRMAR A NORMALIZAÇÃO E LIBERAÇÃO DE
             <tr style="background:#5dc0d6;font-weight:bold;"><td>CIDADE</td><td>{values[5]}</td></tr>
             <tr style="background:#5dc0d6;font-weight:bold;"><td>UF</td><td>{values[6]}</td></tr>
             <tr style="background:#5dc0d6;font-weight:bold;"><td>CEP</td><td>{values[7]}</td></tr>
+            <tr style="background:#5dc0d6;font-weight:bold;"><td>VD NOVO</td><td>{values[12]}</td></tr>
+            <tr style="background:#5dc0d6;font-weight:bold;"><td>Operadora</td><td>{operadora}</td></tr>
+            <tr style="background:#5dc0d6;font-weight:bold;"><td>Circuito/Designação</td><td>{circuito}</td></tr>
+            <tr style="background:#5dc0d6;font-weight:bold;"><td>Novo Circuito/Designação</td><td>{novo_circuito}</td></tr>
+            <tr style="background:#5dc0d6;font-weight:bold;"><td>ID VIVO</td><td>{id_vivo}</td></tr>
+            <tr style="background:#5dc0d6;font-weight:bold;"><td>Novo ID Vivo</td><td>{novo_id_vivo}</td></tr>
             <tr style="background:#fff7b2;font-weight:bold;"><td>2ª a 6ª</td><td>{values[8]}</td></tr>
             <tr style="background:#fff7b2;font-weight:bold;"><td>SAB / DOM</td><td>{values[9]} / {values[10]}</td></tr>
             <tr style="background:#fff7b2;font-weight:bold;"><td>FUNC.</td><td>{values[11]}</td></tr>
-            <tr style="background:#fff7b2;font-weight:bold;"><td>VD NOVO</td><td>{values[12]}</td></tr>
             <tr>
                 <td colspan="2" style="background:#ed1c24;color:#fff;font-weight:bold;text-align:left;">
                     CONTATO COMMAND CENTER<br>
@@ -492,24 +511,31 @@ LOJA VD {values[1]} FAVOR LIGAR PARA CONFIRMAR A NORMALIZAÇÃO E LIBERAÇÃO DE
             messagebox.showwarning("Seleção necessária", "Selecione um item para gerar o carimbo.")
             return
         values = self.tree_servicos.item(selected[0], 'values')
-        # Para os horários, buscar na tabela de lojas pelo people
+        peop = values[0]
+        # Buscar dados da loja correspondente
         conn = sqlite3.connect('inventario.db')
         cursor = conn.cursor()
-        cursor.execute("SELECT horario_semana, horario_sabado, horario_domingo, funcionamento FROM lojas WHERE peop=? OR peop=?", (values[0], 'VD'+values[0]))
-        row = cursor.fetchone()
-        if row:
-            horario_semana, horario_sabado, horario_domingo, funcionamento = row
+        cursor.execute("SELECT nome, endereco, bairro, cidade, uf, cep, vd_novo, horario_semana, horario_sabado, horario_domingo, funcionamento FROM lojas WHERE peop=? OR peop=?", (peop, 'VD'+peop))
+        row_loja = cursor.fetchone()
+        if row_loja:
+            nome, endereco, bairro, cidade, uf, cep, vd_novo, horario_semana, horario_sabado, horario_domingo, funcionamento = row_loja
         else:
-            horario_semana = horario_sabado = horario_domingo = funcionamento = ''
+            nome = endereco = bairro = cidade = uf = cep = vd_novo = horario_semana = horario_sabado = horario_domingo = funcionamento = ''
         conn.close()
         carimbo_texto = f"""
-People: {values[0]}
+PEOP: {peop}
+LOJAS: {nome}
+ENDEREÇO: {endereco}
+BAIRRO: {bairro}
+CIDADE: {cidade}
+UF: {uf}
+CEP: {cep}
+VD NOVO: {vd_novo}
 Operadora: {values[1]}
 Circuito/Designação: {values[2]}
 Novo Circuito/Designação: {values[3]}
 ID VIVO: {values[4]}
 Novo ID Vivo: {values[5]}
-
 2ª a 6ª: {horario_semana}
 SAB / DOM: {horario_sabado} / {horario_domingo}
 FUNC.: {funcionamento}
@@ -520,13 +546,13 @@ Telefone: (11) 3274-7527
 E-mail: central.comando@dpsp.com.br
 
 MENSAGEM DE ABERTURA DE CHAMADO NOS PORTAIS
-LOJA VD {values[0]} FAVOR LIGAR PARA CONFIRMAR A NORMALIZAÇÃO E LIBERAÇÃO DE ACESSO COM A CENTRAL DE COMANDO | HORÁRIO DE FUNCIONAMENTO: 24 HORAS | SÁB 24 HORAS | DOM 24 HORAS
+LOJA VD {peop} FAVOR LIGAR PARA CONFIRMAR A NORMALIZAÇÃO E LIBERAÇÃO DE ACESSO COM A CENTRAL DE COMANDO | HORÁRIO DE FUNCIONAMENTO: 24 HORAS | SÁB 24 HORAS | DOM 24 HORAS
 """
         # Exibir em popup apenas a imagem
         top = tk.Toplevel(self.root)
-        top.title("Carimbo - Inventário")
+        top.title("Carimbo - Inventário + Loja")
         try:
-            img = self.gerar_png_carimbo(carimbo_texto, f"carimbo_inventario_{values[0]}.png", return_image=True)
+            img = self.gerar_png_carimbo(carimbo_texto, f"carimbo_inventario_{peop}.png", return_image=True)
             max_width = 900
             if img.width > max_width:
                 ratio = max_width / img.width
@@ -538,21 +564,26 @@ LOJA VD {values[0]} FAVOR LIGAR PARA CONFIRMAR A NORMALIZAÇÃO E LIBERAÇÃO DE
             label_img.pack(padx=10, pady=10)
         except Exception as e:
             tk.Label(top, text=f"Erro ao carregar imagem: {e}", fg="red").pack()
-        png_path = f"carimbos/carimbo_inventario_{values[0]}.png"
-        tk.Label(top, text=f"PNG salvo como carimbo_inventario_{values[0]}.png").pack()
+        png_path = f"carimbos/carimbo_inventario_{peop}.png"
+        tk.Label(top, text=f"PNG salvo como carimbo_inventario_{peop}.png").pack()
 
-        # HTML personalizado (igual ao Outlook)
-        peop = values[0]
-        loja = values[2]
-        assunto = f"{peop} | {loja} - Link Inoperante"
+        # HTML personalizado (igual ao Outlook, agora com campos combinados)
+        assunto = f"{peop} | {nome} - Link Inoperante"
         assinatura = "<br>Atenciosamente,<br>"
         html = f'''
         <html><body>
         <p>Prezados,</p>
-        <p>Identificamos que o link da loja <b>{peop} | {loja}</b> está inoperante. Seguem os dados necessários para abertura do reparo:</p>
+        <p>Identificamos que o link da loja <b>{peop} | {nome}</b> está inoperante. Seguem os dados necessários para abertura do reparo:</p>
         <table cellpadding="4" cellspacing="0" border="1" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:14px;">
-            <tr style="background:#b4d2ff;font-weight:bold;text-align:center;"><td colspan="2" style="font-size:20px;">Inventário</td></tr>
-            <tr style="background:#b4d2ff;font-weight:bold;"><td>People</td><td>{peop}</td></tr>
+            <tr style="background:#b4d2ff;font-weight:bold;text-align:center;"><td colspan="2" style="font-size:20px;">Inventário + Relação de Lojas</td></tr>
+            <tr style="background:#b4d2ff;font-weight:bold;"><td>PEOP</td><td>{peop}</td></tr>
+            <tr style="background:#5dc0d6;font-weight:bold;"><td>LOJAS</td><td>{nome}</td></tr>
+            <tr style="background:#5dc0d6;font-weight:bold;"><td>ENDEREÇO</td><td>{endereco}</td></tr>
+            <tr style="background:#5dc0d6;font-weight:bold;"><td>BAIRRO</td><td>{bairro}</td></tr>
+            <tr style="background:#5dc0d6;font-weight:bold;"><td>CIDADE</td><td>{cidade}</td></tr>
+            <tr style="background:#5dc0d6;font-weight:bold;"><td>UF</td><td>{uf}</td></tr>
+            <tr style="background:#5dc0d6;font-weight:bold;"><td>CEP</td><td>{cep}</td></tr>
+            <tr style="background:#5dc0d6;font-weight:bold;"><td>VD NOVO</td><td>{vd_novo}</td></tr>
             <tr style="background:#5dc0d6;font-weight:bold;"><td>Operadora</td><td>{values[1]}</td></tr>
             <tr style="background:#5dc0d6;font-weight:bold;"><td>Circuito/Designação</td><td>{values[2]}</td></tr>
             <tr style="background:#5dc0d6;font-weight:bold;"><td>Novo Circuito/Designação</td><td>{values[3]}</td></tr>
