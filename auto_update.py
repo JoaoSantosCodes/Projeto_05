@@ -10,16 +10,46 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import json
+from logging.handlers import RotatingFileHandler
+import hashlib
+import argparse
+from cryptography.fernet import Fernet
+import git
 
-# Configuração do logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('auto_update.log'),
-        logging.StreamHandler()
-    ]
-)
+# Função para configurar logging diário e log de erros
+def setup_logging():
+    log_dir = 'logs'
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    
+    today = datetime.now().strftime('%Y-%m-%d')
+    log_file = os.path.join(log_dir, f'auto_update_{today}.log')
+    error_log_file = os.path.join(log_dir, 'auto_update_errors.log')
+
+    # Logger principal
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    logger.handlers = []  # Limpa handlers antigos
+
+    # Handler para log diário
+    file_handler = RotatingFileHandler(log_file, maxBytes=5*1024*1024, backupCount=7, encoding='utf-8')
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    logger.addHandler(file_handler)
+
+    # Handler para log de erros
+    error_handler = RotatingFileHandler(error_log_file, maxBytes=2*1024*1024, backupCount=5, encoding='utf-8')
+    error_handler.setLevel(logging.ERROR)
+    error_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    logger.addHandler(error_handler)
+
+    # Handler para console
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    logger.addHandler(console_handler)
+
+setup_logging()
 
 def load_config():
     """Carrega as configurações do arquivo YAML"""
@@ -87,8 +117,64 @@ def send_email_notification(subject, message, config):
     except Exception as e:
         logging.error(f"Erro ao configurar e-mail: {str(e)}")
 
+def hash_file(filepath):
+    """Calcula o hash SHA256 de um arquivo."""
+    sha256 = hashlib.sha256()
+    with open(filepath, 'rb') as f:
+        for chunk in iter(lambda: f.read(4096), b''):
+            sha256.update(chunk)
+    return sha256.hexdigest()
+
+def generate_backup_integrity(backup_path):
+    """Gera um arquivo integrity.json com os hashes SHA256 de todos os arquivos do backup."""
+    integrity = {}
+    for root, dirs, files in os.walk(backup_path):
+        for file in files:
+            file_path = os.path.join(root, file)
+            rel_path = os.path.relpath(file_path, backup_path)
+            integrity[rel_path] = hash_file(file_path)
+    integrity_file = os.path.join(backup_path, 'integrity.json')
+    with open(integrity_file, 'w', encoding='utf-8') as f:
+        json.dump(integrity, f, indent=2)
+    logging.info(f"Arquivo de integridade gerado: {integrity_file}")
+
+def get_encryption_key():
+    """Obtém a chave de criptografia do ambiente ou de um arquivo."""
+    key = os.getenv('BACKUP_ENCRYPTION_KEY')
+    if key:
+        return key.encode()
+    key_file = 'backup.key'
+    if os.path.exists(key_file):
+        with open(key_file, 'rb') as f:
+            return f.read()
+    return None
+
+def encrypt_file(filepath, fernet):
+    """Criptografa um arquivo usando Fernet."""
+    with open(filepath, 'rb') as f:
+        data = f.read()
+    encrypted = fernet.encrypt(data)
+    with open(filepath, 'wb') as f:
+        f.write(encrypted)
+
+def encrypt_backup(backup_path):
+    """Criptografa todos os arquivos do backup, exceto integrity.json."""
+    key = get_encryption_key()
+    if not key:
+        logging.info("Chave de criptografia não definida. Backup NÃO será criptografado.")
+        return
+    fernet = Fernet(key)
+    for root, dirs, files in os.walk(backup_path):
+        for file in files:
+            if file == 'integrity.json':
+                continue
+            file_path = os.path.join(root, file)
+            encrypt_file(file_path, fernet)
+            logging.info(f"Arquivo criptografado: {file_path}")
+    logging.info(f"Backup criptografado com sucesso: {backup_path}")
+
 def create_backup(config):
-    """Cria um backup do diretório atual"""
+    """Cria um backup do diretório atual, gera arquivo de integridade e criptografa se habilitado."""
     if not config['backup']['enabled']:
         return None
 
@@ -102,10 +188,7 @@ def create_backup(config):
         backup_path = os.path.join(backup_dir, backup_name)
 
         # Ignora diretórios que não devem ser incluídos no backup
-        ignore = shutil.ignore_patterns(
-            '.git', '.venv', '__pycache__', '*.pyc',
-            '*.log', 'backups', 'node_modules'
-        )
+        ignore = shutil.ignore_patterns(*config['backup'].get('ignore_patterns', []))
 
         shutil.copytree('.', backup_path, ignore=ignore)
         logging.info(f"Backup criado em: {backup_path}")
@@ -117,6 +200,13 @@ def create_backup(config):
             old_backup = os.path.join(backup_dir, backups.pop(0))
             shutil.rmtree(old_backup)
             logging.info(f"Backup antigo removido: {old_backup}")
+
+        # Gerar arquivo de integridade
+        generate_backup_integrity(backup_path)
+
+        # Criptografar backup se habilitado
+        if config['backup'].get('encryption_enabled', False):
+            encrypt_backup(backup_path)
 
         return backup_path
     except Exception as e:
@@ -184,6 +274,105 @@ def commit_and_push(config):
         send_email_notification("Erro na Atualização", error_message, config)
         return False
 
+def check_backup_integrity(backup_path, notify_on_fail=False, config=None, problems=None):
+    """Verifica a integridade dos arquivos de backup usando o integrity.json."""
+    integrity_file = os.path.join(backup_path, 'integrity.json')
+    if not os.path.exists(integrity_file):
+        msg = f"[ERRO] Arquivo de integridade não encontrado em {backup_path}"
+        print(msg)
+        if notify_on_fail and problems is not None:
+            problems.append(msg)
+        return False
+    with open(integrity_file, 'r', encoding='utf-8') as f:
+        integrity = json.load(f)
+    all_ok = True
+    for rel_path, expected_hash in integrity.items():
+        file_path = os.path.join(backup_path, rel_path)
+        if not os.path.exists(file_path):
+            msg = f"[ERRO] Arquivo ausente: {rel_path} em {backup_path}"
+            print(msg)
+            all_ok = False
+            if notify_on_fail and problems is not None:
+                problems.append(msg)
+            continue
+        actual_hash = hash_file(file_path)
+        if actual_hash != expected_hash:
+            msg = f"[ERRO] Hash divergente: {rel_path} em {backup_path}\n  Esperado: {expected_hash}\n  Encontrado: {actual_hash}"
+            print(msg)
+            all_ok = False
+            if notify_on_fail and problems is not None:
+                problems.append(msg)
+    if all_ok:
+        print(f"[OK] Backup {backup_path} íntegro!")
+    else:
+        print(f"[FALHA] Integridade comprometida em {backup_path}")
+    return all_ok
+
+def check_all_backups(config, notify_on_fail=False):
+    """Verifica a integridade de todos os backups existentes e envia notificação se houver falhas."""
+    backup_dir = config['backup']['directory']
+    if not os.path.exists(backup_dir):
+        print("Nenhum backup encontrado.")
+        return
+    backups = sorted([d for d in os.listdir(backup_dir) if os.path.isdir(os.path.join(backup_dir, d))])
+    if not backups:
+        print("Nenhum backup encontrado.")
+        return
+    problems = []
+    for backup in backups:
+        backup_path = os.path.join(backup_dir, backup)
+        check_backup_integrity(backup_path, notify_on_fail=notify_on_fail, config=config, problems=problems)
+    if notify_on_fail and problems:
+        subject = "Alerta: Problemas de integridade em backup(s)"
+        message = "Foram detectados problemas de integridade nos seguintes backups:\n\n" + "\n".join(problems)
+        send_email_notification(subject, message, config)
+        print("[ALERTA] Notificação de integridade enviada por e-mail!")
+
+def print_status(config):
+    print("\n===== STATUS DO SISTEMA DE BACKUP =====\n")
+    # Backups
+    backup_dir = config['backup']['directory']
+    print("Backups recentes:")
+    if not os.path.exists(backup_dir):
+        print("  Nenhum backup encontrado.")
+    else:
+        backups = sorted([d for d in os.listdir(backup_dir) if os.path.isdir(os.path.join(backup_dir, d))], reverse=True)
+        for backup in backups[:5]:
+            backup_path = os.path.join(backup_dir, backup)
+            integrity_file = os.path.join(backup_path, 'integrity.json')
+            encrypted = False
+            for root, dirs, files in os.walk(backup_path):
+                for file in files:
+                    if file != 'integrity.json':
+                        with open(os.path.join(root, file), 'rb') as f:
+                            if f.read(1) == b'g':  # Fernet encrypted files start with 'g'
+                                encrypted = True
+                                break
+                break
+            status = "Criptografado" if encrypted else "Aberto"
+            integrity = "OK" if os.path.exists(integrity_file) else "Sem integridade"
+            print(f"  - {backup} | {status} | Integridade: {integrity}")
+    # Últimos commits
+    print("\nÚltimos commits automáticos:")
+    try:
+        repo = git.Repo('.')
+        for commit in repo.iter_commits('main', max_count=5):
+            msg = commit.message.strip().replace('\n', ' ')
+            print(f"  - {commit.committed_datetime.strftime('%Y-%m-%d %H:%M:%S')} | {msg}")
+    except Exception as e:
+        print(f"  [ERRO] Não foi possível ler os commits: {e}")
+    # Últimos erros
+    print("\nErros recentes:")
+    error_log = os.path.join('logs', 'auto_update_errors.log')
+    if os.path.exists(error_log):
+        with open(error_log, 'r', encoding='utf-8') as f:
+            lines = f.readlines()[-5:]
+            for line in lines:
+                print(f"  {line.strip()}")
+    else:
+        print("  Nenhum erro registrado.")
+    print("\n========================================\n")
+
 def main():
     """Loop principal do script"""
     config = load_config()
@@ -230,4 +419,17 @@ def main():
             time.sleep(config['update']['interval'])
 
 if __name__ == "__main__":
-    main() 
+    parser = argparse.ArgumentParser(description="Auto Update System")
+    parser.add_argument('--check-backups', action='store_true', help='Verifica a integridade de todos os backups')
+    parser.add_argument('--notify', action='store_true', help='Envia notificação por e-mail se houver falhas de integridade')
+    parser.add_argument('--status', action='store_true', help='Exibe status dos backups, commits e erros recentes')
+    args = parser.parse_args()
+
+    if args.check_backups:
+        config = load_config()
+        check_all_backups(config, notify_on_fail=args.notify)
+    elif args.status:
+        config = load_config()
+        print_status(config)
+    else:
+        main() 

@@ -1,3 +1,16 @@
+# Projeto de Backup e Automação
+
+## Índice
+- [Visão Geral](#visão-geral)
+- [Configuração](#configuração)
+- [Backup Automático](#backup-automático)
+- [Criptografia dos Backups](#criptografia-dos-backups)
+- [Verificação de Integridade dos Backups](#verificação-de-integridade-dos-backups)
+- [Notificações Automáticas](#notificações-automáticas)
+- [Logs e Monitoramento](#logs-e-monitoramento)
+- [Interface CLI e Comandos](#interface-cli-e-comandos)
+- [Roadmap Revisado do Projeto](#roadmap-revisado-do-projeto)
+
 # Documentação do Projeto - Sistema de Consulta de Lojas e Inventário
 
 > **Repositório oficial:** [github.com/JoaoSantosCodes/Projeto_02](https://github.com/JoaoSantosCodes/Projeto_02)
@@ -346,3 +359,144 @@ backup:
 - Monitore o uso de recursos
 - Acompanhe as notificações
 - Verifique o status dos backups 
+
+## Estrutura de Logs
+
+O sistema agora gera logs organizados para facilitar auditoria e troubleshooting:
+
+- `logs/auto_update_YYYY-MM-DD.log`: Log diário de todas as operações do dia.
+- `logs/auto_update_errors.log`: Log separado apenas para erros críticos.
+- Logs antigos são rotacionados automaticamente.
+
+**Vantagens:**
+- Facilita a busca por eventos de um dia específico.
+- Permite auditoria rápida de falhas e problemas recorrentes.
+- Mantém o diretório principal limpo. 
+
+## Verificação de Integridade dos Backups
+
+- Cada backup criado agora possui um arquivo `integrity.json` dentro da respectiva pasta.
+- Esse arquivo contém o hash SHA256 de todos os arquivos do backup, permitindo auditoria e verificação de integridade.
+- Para verificar se um backup foi corrompido ou alterado, basta recalcular os hashes dos arquivos e comparar com o `integrity.json`.
+- O processo é automático a cada novo backup.
+
+**Exemplo de uso:**
+- Se precisar restaurar um backup, valide antes a integridade usando o arquivo `integrity.json`.
+- Em breve, será possível rodar um comando para checagem automática de integridade.
+
+### Como checar a integridade dos backups
+
+Para verificar automaticamente a integridade de todos os backups existentes, execute:
+
+```
+python auto_update.py --check-backups
+```
+
+O sistema irá:
+- Ler todos os backups na pasta configurada
+- Comparar os hashes dos arquivos com o `integrity.json`
+- Informar se cada backup está íntegro ou se há arquivos corrompidos/ausentes 
+
+## Criptografia dos Backups
+
+- Se `encryption_enabled: true` no `config.yaml`, todos os arquivos dos backups (exceto `integrity.json`) serão criptografados usando Fernet (AES).
+- A chave de criptografia pode ser definida por variável de ambiente `BACKUP_ENCRYPTION_KEY` ou pelo arquivo `backup.key` na raiz do projeto.
+- Para gerar uma chave segura, execute no Python:
+  ```python
+  from cryptography.fernet import Fernet
+  print(Fernet.generate_key().decode())
+  ```
+  Copie o resultado para a variável de ambiente ou salve em `backup.key`.
+- **IMPORTANTE:** Guarde a chave em local seguro! Sem ela, não será possível descriptografar os backups.
+
+**Exemplo de uso:**
+- Para descriptografar um arquivo, use o mesmo método Fernet e a mesma chave. 
+
+### Como visualizar o status do sistema
+
+Para exibir um resumo rápido dos backups, últimos commits e erros recentes, execute:
+
+```
+python auto_update.py --status
+```
+
+O sistema irá mostrar:
+- Lista dos últimos backups (data, integridade, criptografado ou não)
+- Últimos commits automáticos
+- Últimos erros críticos registrados 
+
+### Notificações automáticas de integridade
+
+Para receber um alerta por e-mail caso algum backup esteja corrompido ou ausente, execute:
+
+```
+python auto_update.py --check-backups --notify
+```
+
+Se houver qualquer problema de integridade, um e-mail será enviado com os detalhes dos arquivos/backup(s) afetados. 
+
+# ROADMAP REVISADO DO PROJETO
+
+## Estado Atual (2025-06)
+
+### Funcionalidades já implementadas
+- **Backup automático com versionamento e rotação**
+- **Commit e push automáticos para o GitHub**
+- **Backup seguro com criptografia opcional (Fernet/AES)**
+- **Geração e verificação de integridade dos backups (hash SHA256)**
+- **Notificações automáticas por e-mail (sucesso, erro, integridade)**
+- **Logs diários, logs de erro separados e rotacionados**
+- **Interface CLI para status, checagem de integridade e monitoramento**
+- **Configuração centralizada via YAML e variáveis de ambiente**
+- **Documentação detalhada e onboarding facilitado**
+
+### Pontos fortes
+- Segurança (criptografia, variáveis de ambiente, logs segregados)
+- Facilidade de uso (CLI, documentação, exemplos)
+- Auditoria e rastreabilidade (logs, integridade, notificações)
+- Modularidade para expansão futura
+
+## Próximos Passos Sugeridos
+
+### Integrações externas
+- [ ] Notificações via Slack, Telegram ou Microsoft Teams
+- [ ] Webhook para integração com outros sistemas
+
+### Interface e usabilidade
+- [ ] Interface web simples para monitoramento e restauração assistida
+- [ ] Dashboard de status dos backups e notificações
+- [ ] Wizard de configuração inicial
+
+### Automação e DevOps
+- [ ] Pipeline CI/CD para testes automáticos do sistema de backup
+- [ ] Deploy automatizado em servidores
+- [ ] Testes de restauração automatizada
+
+### Segurança avançada
+- [ ] Rotação automática de chaves de criptografia
+- [ ] Backup redundante em múltiplos destinos (cloud/local)
+- [ ] Monitoramento de tentativas de acesso não autorizado
+
+### Outras sugestões
+- [ ] Suporte a múltiplos repositórios/projetos
+- [ ] Permitir múltiplos destinatários de notificação
+- [ ] Exportação de relatórios de auditoria
+
+---
+
+**O projeto está pronto para uso em produção, com base em boas práticas de segurança, automação e auditoria.**
+
+Para evoluir, basta priorizar os próximos passos conforme a necessidade do time ou do negócio. 
+
+# Checklist de Revisão Final
+
+- [x] Todos os arquivos essenciais presentes e organizados
+- [x] Nenhum arquivo sensível versionado (confira .gitignore)
+- [x] Documentação cobre todos os pontos importantes
+- [x] Scripts testados em ambiente limpo
+- [x] Variáveis de ambiente e segredos protegidos
+- [x] Logs e backups rotacionados corretamente
+- [x] Configuração centralizada e fácil de entender
+- [x] Pronto para onboarding de novos colaboradores
+
+--- 

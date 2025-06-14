@@ -134,4 +134,7 @@ htmlcov/
 # Arquivos de build
 build/
 dist/
-*.egg-info/ 
+*.egg-info/
+
+# Tools
+tools/ 

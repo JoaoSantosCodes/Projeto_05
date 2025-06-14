@@ -25,4 +25,5 @@ backup:
     - "backups"
     - "node_modules"
     - "*.db"
-    - "*.bat" 
+    - "*.bat"
+  encryption_enabled: true  # Ativa criptografia dos backups 
