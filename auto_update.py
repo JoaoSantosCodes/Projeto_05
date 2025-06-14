@@ -35,6 +35,29 @@ def send_email_notification(subject, message, config):
     if not config['notifications']['email']['enabled']:
         return
 
+    # Verifica se as configurações necessárias estão presentes
+    required_configs = [
+        'sender_email',
+        'recipient_email',
+        'smtp_server',
+        'smtp_port'
+    ]
+    
+    missing_configs = [cfg for cfg in required_configs 
+                      if not config['notifications']['email'].get(cfg)]
+    
+    if missing_configs:
+        logging.error(f"Configurações de e-mail incompletas. Faltando: {', '.join(missing_configs)}")
+        return
+
+    # Verifica se as variáveis de ambiente estão definidas
+    email_user = os.getenv('EMAIL_USER')
+    email_password = os.getenv('EMAIL_PASSWORD')
+    
+    if not email_user or not email_password:
+        logging.error("Variáveis de ambiente EMAIL_USER e/ou EMAIL_PASSWORD não definidas")
+        return
+
     try:
         msg = MIMEMultipart()
         msg['From'] = config['notifications']['email']['sender_email']
@@ -46,13 +69,23 @@ def send_email_notification(subject, message, config):
         with smtplib.SMTP(config['notifications']['email']['smtp_server'], 
                          config['notifications']['email']['smtp_port']) as server:
             server.starttls()
-            # Aqui você deve usar variáveis de ambiente para as credenciais
-            server.login(os.getenv('EMAIL_USER'), os.getenv('EMAIL_PASSWORD'))
-            server.send_message(msg)
-            
-        logging.info("Notificação por e-mail enviada com sucesso")
+            try:
+                server.login(email_user, email_password)
+            except smtplib.SMTPAuthenticationError:
+                logging.error("Falha na autenticação SMTP. Verifique as credenciais.")
+                return
+            except Exception as e:
+                logging.error(f"Erro ao autenticar no servidor SMTP: {str(e)}")
+                return
+                
+            try:
+                server.send_message(msg)
+                logging.info("Notificação por e-mail enviada com sucesso")
+            except Exception as e:
+                logging.error(f"Erro ao enviar e-mail: {str(e)}")
+                
     except Exception as e:
-        logging.error(f"Erro ao enviar e-mail: {str(e)}")
+        logging.error(f"Erro ao configurar e-mail: {str(e)}")
 
 def create_backup(config):
     """Cria um backup do diretório atual"""
