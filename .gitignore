@@ -41,6 +41,9 @@ ENV/
 logs/
 log/
 
+# Logs do script de atualização automática
+auto_update.log
+
 # Database
 *.db
 *.sqlite3
@@ -82,4 +85,7 @@ desktop.ini
 # Project specific
 Excel/
 inventario.db
-*.bat 
+*.bat
+
+# Diretório de backups do sistema de atualização automática
+backups/ 

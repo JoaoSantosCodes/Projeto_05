@@ -116,6 +116,27 @@ robot tests/ui/
 pytest --cov=app tests/
 ```
 
+## 🧪 Teste seguro de envio de e-mail
+
+Para rodar o teste de integração de envio de e-mail:
+1. Crie um arquivo `.env` ou defina as variáveis de ambiente:
+   - `EMAIL_USER` (e-mail do remetente)
+   - `EMAIL_PASSWORD` (senha de app do Gmail)
+   - `EMAIL_TEST_RECEIVER` (e-mail de destino para o teste)
+2. Execute:
+   ```bash
+   pytest tests/integration/test_send_mail.py
+   ```
+
+Exemplo de `.env.example`:
+```
+EMAIL_USER=seu_email@gmail.com
+EMAIL_PASSWORD=sua_senha_de_app_gmail
+EMAIL_TEST_RECEIVER=destinatario@exemplo.com
+```
+
+O teste será ignorado automaticamente se as variáveis não estiverem definidas.
+
 ## 📦 Distribuição
 
 Para criar o executável:
@@ -150,6 +171,70 @@ Veja nosso [Roadmap](docs/ROADMAP.md) para as próximas melhorias planejadas.
 ## 📫 Suporte
 
 Para suporte, abra uma issue no GitHub ou envie um e-mail para seu-email@dominio.com
+
+> **Atenção:**
+> Testes sensíveis que utilizavam segredos foram removidos do repositório por segurança. Para testar envio de e-mail, utilize variáveis de ambiente e nunca exponha senhas ou tokens no código.
+
+## 🔄 Sistema de Atualização Automática
+
+O projeto inclui um sistema de atualização automática que mantém o repositório sincronizado com o GitHub:
+
+### Configuração
+
+1. Crie um arquivo `.env` com suas credenciais de e-mail:
+   ```
+   EMAIL_USER=seu_email@gmail.com
+   EMAIL_PASSWORD=sua_senha_de_app_gmail
+   ```
+
+2. Configure o arquivo `config.yaml`:
+   ```yaml
+   update:
+     interval: 300  # Intervalo em segundos
+     max_retries: 3  # Tentativas em caso de erro
+
+   notifications:
+     email:
+       enabled: true
+       sender_email: "seu_email@gmail.com"
+       recipient_email: "destinatario@exemplo.com"
+
+   backup:
+     enabled: true
+     directory: "backups"
+     max_backups: 5
+   ```
+
+### Funcionalidades
+
+- **Atualização Automática**: Commit e push a cada 5 minutos (configurável)
+- **Sistema de Backup**: Cria backups antes de cada commit
+- **Notificações por E-mail**: Envia alertas de sucesso e erro
+- **Tratamento de Erros**: Sistema de retry e notificações
+- **Logs Detalhados**: Registro completo de todas as operações
+
+### Como Usar
+
+1. Configure o arquivo `config.yaml` com suas preferências
+2. Configure as variáveis de ambiente no arquivo `.env`
+3. Execute `auto_update.bat`
+4. O script iniciará o monitoramento automático
+
+### Arquivos Importantes
+
+- `auto_update.py`: Script principal
+- `auto_update.bat`: Inicializador para Windows
+- `config.yaml`: Configurações do sistema
+- `auto_update.log`: Arquivo de logs
+- `backups/`: Diretório de backups (ignorado pelo git)
+
+### Boas Práticas
+
+- Mantenha o script rodando apenas quando necessário
+- Monitore os logs para identificar problemas
+- Configure corretamente as credenciais de e-mail
+- Mantenha backups regulares
+- Não modifique arquivos sensíveis durante a execução
 
 ---
 
