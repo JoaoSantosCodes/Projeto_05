@@ -88,4 +88,50 @@ inventario.db
 *.bat
 
 # Diretório de backups do sistema de atualização automática
-backups/ 
+backups/
+
+# Arquivos de ambiente e configuração
+.env.*
+*.env
+config.local.yaml
+
+# Arquivos de log e backup
+*.log
+backups/
+logs/
+
+# Arquivos de banco de dados
+*.db
+*.sqlite
+*.sqlite3
+
+# Arquivos temporários
+*.tmp
+*.temp
+*.swp
+*~
+
+# Arquivos de IDE
+.vscode/
+.idea/
+*.sublime-*
+*.sublime-project
+*.sublime-workspace
+
+# Arquivos do sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Arquivos de cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Arquivos de build
+build/
+dist/
+*.egg-info/ 

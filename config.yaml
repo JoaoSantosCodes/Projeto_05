@@ -5,14 +5,24 @@ update:
 
 notifications:
   email:
-    enabled: true
+    enabled: true  # Habilitado com os e-mails configurados
     smtp_server: "smtp.gmail.com"
     smtp_port: 587
-    sender_email: ""  # Preencher com o e-mail do remetente
-    recipient_email: ""  # Preencher com o e-mail do destinatário
+    sender_email: "operacionaldpsp@gmail.com"
+    recipient_email: "operacionaldpsp@gmail.com"
     subject_prefix: "[Auto-Update]"
 
 backup:
   enabled: true
   directory: "backups"
-  max_backups: 5  # Número máximo de backups a manter 
+  max_backups: 5  # Número máximo de backups a manter
+  ignore_patterns:  # Padrões de arquivos a ignorar no backup
+    - ".git"
+    - ".venv"
+    - "__pycache__"
+    - "*.pyc"
+    - "*.log"
+    - "backups"
+    - "node_modules"
+    - "*.db"
+    - "*.bat" 

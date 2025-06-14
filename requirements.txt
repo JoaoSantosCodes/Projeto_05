@@ -1,28 +1,32 @@
 # Dependências principais
-pandas>=1.5.0
-openpyxl>=3.0.10
-Pillow>=9.0.0
-numpy>=1.21.0
-et-xmlfile>=1.1.0
+Flask==3.0.2
+Werkzeug==3.0.1
+SQLAlchemy==2.0.28
+bcrypt==4.1.2
+python-dotenv==1.0.1
+
+# Dependências do sistema de atualização automática
+PyYAML==6.0.1
+requests==2.31.0
+cryptography==42.0.5
+
+# Dependências de desenvolvimento
+pytest==8.0.2
+pytest-cov==4.1.0
+flake8==7.0.0
+mypy==1.8.0
+black==24.2.0
+isort==5.13.2
+
+# Dependências de segurança
 python-dateutil>=2.8.2
 pytz>=2021.3
 tzdata>=2021.3
 
 # Dependências de desenvolvimento
-pytest>=7.0.0
-pytest-cov>=4.0.0
 pytest-qt>=4.2.0
-black>=22.0.0
-flake8>=4.0.0
-mypy>=0.950
 pyinstaller>=5.0.0
 auto-py-to-exe>=2.0.0
 
 # Dependências de segurança
-cryptography>=37.0.0
-bcrypt>=3.2.0
-python-dotenv>=0.19.0
-
-# Dependências do sistema de atualização automática
-PyYAML==6.0.1
-python-dotenv==1.0.0 
+python-dotenv>=0.19.0 
