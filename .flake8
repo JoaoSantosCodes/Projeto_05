@@ -1,0 +1,14 @@
+[flake8]
+max-line-length = 100
+exclude = .git,__pycache__,build,dist,.venv
+per-file-ignores =
+    __init__.py: F401
+    tests/*: E203
+    docs/*: E203
+ignore = E203, W503
+max-complexity = 10
+statistics = True
+count = True
+show-source = True
+verbose = True
+output-file = flake8.log 
